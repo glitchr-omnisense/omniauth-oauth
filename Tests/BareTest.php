@@ -85,7 +85,7 @@ final class BareTest extends TestCase
         $eager = array_map('dirname', array_filter($eager));
 
         return array_values(array_filter($files, static fn (?string $file) => null !== $file
-            && [] === array_filter($roots, static fn (string $root) => str_starts_with($file, $root))
+            && [] === array_filter($roots, static fn (string $root) => str_starts_with($file, $root) && !str_starts_with(substr($file, \strlen($root)), 'vendor/'))
             && !\in_array(\dirname($file), $eager, true)
             && !preg_match(self::ALLOWED_FILES, $file)));
     }
