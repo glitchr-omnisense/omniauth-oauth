@@ -1,0 +1,48 @@
+{
+    "name": "omniauth/oauth",
+    "type": "library",
+    "description": "Omniauth's identity providers over league/oauth2-client, under any PHP host, Google first: the sign-in (the authorization address, its state, PKCE and nonce kept in the attempt; then the code exchanged, the ID token's issuer, audience, lifetime and nonce checked, or the userinfo read; the state compared in constant time), the identity linked by the provider's own identifier (\"sub\"), by the address only when the provider says it is verified, never an account created behind the visitor's back (an unknown identity is a result the host turns into its sign-up), and the second factor after it when the account has one. Linking a provider from an account's settings; a fake authorization server for tests.",
+    "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "google", "pkce", "framework-agnostic", "omniauth"],
+    "homepage": "https://github.com/glitchr-studio/omniauth-oauth",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Marco Meyer",
+            "email": "marco.meyer@glitchr.io"
+        }
+    ],
+    "require": {
+        "php": ">=8.2",
+        "league/oauth2-client": "^2.7",
+        "league/oauth2-google": "^4.0",
+        "omniscient/omniauth": "^1.0@dev",
+        "psr/clock": "^1.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "^11.0"
+    },
+    "suggest": {
+        "league/oauth2-facebook": "Another provider, added by configuration (Providers::fromConfig(), a league provider's class): any league/oauth2-client provider serves"
+    },
+    "autoload": {
+        "psr-4": {
+            "Omniauth\\OAuth\\": ""
+        },
+        "exclude-from-classmap": [
+            "/Tests/"
+        ]
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Omniauth\\OAuth\\Tests\\": "Tests/"
+        }
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-1.x": "1.x-dev"
+        }
+    },
+    "config": {
+        "sort-packages": true
+    }
+}
