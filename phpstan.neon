@@ -1,0 +1,13 @@
+# PHPStan at the highest level. phpstan-baseline.neon lists the violations there were when the CI
+# started (2026-10-21, written by glitchr-studio/ci's baseline workflow): the CI fails on any other.
+# Fix one, then drop its entry.
+includes:
+    - phpstan-baseline.neon
+
+parameters:
+    level: max
+    paths:
+        - .
+    excludePaths:
+        - vendor
+    reportUnmatchedIgnoredErrors: false
