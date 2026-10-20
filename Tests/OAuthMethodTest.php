@@ -345,4 +345,35 @@ final class OAuthMethodTest extends TestCase
         self::assertSame(Failure::Expired, $enrolment->confirm(Kit::context(), $return)->failure);
         self::assertSame([], $kit->paul->identities);
     }
+
+    public function testALinkKeepsWhatTheProviderSaidOfTheAddressAndEachSignInMarksItUsed(): void
+    {
+        $kit = new Kit();
+        $kit->signIn(self::RINGO);
+        self::assertSame(['email' => 'ringo@example.org', 'emailVerified' => true, 'usedAt' => $kit->clock->now()->getTimestamp()], $kit->ringo->identityDetails['google'], 'linked by its verified address, used at once');
+
+        $kit->omniauth->abandon();
+        $kit->clock->advance(3600);
+        $kit->signIn(['sub' => '108204', 'email' => 'starr@example.net', 'email_verified' => false]);
+        self::assertSame(['email' => 'ringo@example.org', 'emailVerified' => true, 'usedAt' => $kit->clock->now()->getTimestamp()], $kit->ringo->identityDetails['google'], 'the address of the link kept, the last use moved');
+
+        // From the settings: the address as Google gave it, unverified, and not used until a sign-in.
+        $settings = new Kit(false);
+        $enrolment = $settings->omniauth->enrol(Factor::OAuth, $settings->paul);
+        $return = $settings->google->consent($enrolment->begin(Kit::context(), ['provider' => 'google'])->payload, ['sub' => '2002', 'email' => 'paul.mccartney@gmail.example', 'email_verified' => false]);
+        self::assertTrue($enrolment->confirm(Kit::context(), $return)->isDone());
+        self::assertSame(['email' => 'paul.mccartney@gmail.example', 'emailVerified' => false, 'usedAt' => null], $settings->paul->identityDetails['google']);
+    }
+
+    public function testAnUnlinkedProviderNoLongerSignsTheAccountIn(): void
+    {
+        $kit = new Kit(false);
+        $kit->ringo->identities['google'] = '108204';
+        self::assertSame($kit->ringo, $kit->signIn(self::RINGO)->account);
+
+        $kit->store->unlink($kit->ringo, 'google');
+        $kit->store->unlink($kit->ringo, 'facebook');
+        self::assertSame([], $kit->store->providers($kit->ringo));
+        self::assertSame(Status::IdentityUnknown, $kit->signIn(self::RINGO)->status, 'nobody holds that subject any more, and the address links nothing here');
+    }
 }

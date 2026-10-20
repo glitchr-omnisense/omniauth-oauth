@@ -19,6 +19,8 @@ use Omniauth\OAuth\Provider\Provider;
 use Omniauth\OAuth\Provider\Providers;
 use Omniauth\PendingIdentity;
 use Omniauth\Proof;
+use Omniauth\SystemClock;
+use Psr\Clock\ClockInterface;
 
 /**
  * Signing in through an identity provider (OAuth 2, OpenID Connect), a first
@@ -50,7 +52,9 @@ use Omniauth\Proof;
  *
  * From the settings, enrolBegin()/enrolConfirm() link a provider to the
  * account signed in (['provider' => 'google']): the same trip, the subject
- * refused when another account holds it.
+ * refused when another account holds it; Identities::unlink() undoes it.
+ * A link keeps the address the provider gave then and whether it vouched for
+ * it; each sign-in by an identity marks it used (Identities::used()).
  *
  * Refusals are `bad-credentials` with a stable reason: `unknown-provider`,
  * `state-mismatch`, `provider-denied` (the person said no), `provider-error`,
@@ -62,13 +66,17 @@ use Omniauth\Proof;
  */
 final class OAuthMethod implements Challenging, Enrolling
 {
+    private readonly ClockInterface $clock;
+
     public function __construct(
         private readonly Accounts $accounts,
         private readonly Identities $identities,
         private readonly Providers $providers,
         /** Link an account by a verified address: true (any), false (never), or a rule (QA3: NoSecondFactorLinking). */
         private readonly EmailLinking|bool $byEmail = true,
+        ?ClockInterface $clock = null,
     ) {
+        $this->clock = $clock ?? new SystemClock();
     }
 
     public function factor(): Factor
@@ -94,6 +102,8 @@ final class OAuthMethod implements Challenging, Enrolling
         }
         $owner = $this->identities->owner($returned->provider, $returned->subject);
         if (null !== $owner) {
+            $this->identities->used($returned->provider, $returned->subject, $this->clock->now());
+
             return Verdict::passed($owner);
         }
         $account = $this->byVerifiedEmail($returned);
@@ -107,7 +117,8 @@ final class OAuthMethod implements Challenging, Enrolling
         if (false === $this->byEmail || ($this->byEmail instanceof EmailLinking && !$this->byEmail->allows($account, $returned))) {
             return Verdict::refused(Failure::NotEnrolled, 'link-from-settings');
         }
-        $this->identities->link($account, $returned->provider, $returned->subject);
+        $this->identities->link($account, $returned->provider, $returned->subject, $returned->email, $returned->emailVerified);
+        $this->identities->used($returned->provider, $returned->subject, $this->clock->now());
 
         return Verdict::passed($account);
     }
@@ -125,7 +136,7 @@ final class OAuthMethod implements Challenging, Enrolling
             return Enrolled::failed($returned->failure ?? Failure::BadCredentials, $returned->reason);
         }
 
-        return $this->link($account, $returned->provider, $returned->subject);
+        return $this->link($account, $returned->provider, $returned->subject, $returned->email, $returned->emailVerified);
     }
 
     /**
@@ -135,10 +146,10 @@ final class OAuthMethod implements Challenging, Enrolling
      */
     public function adopt(object $account, PendingIdentity $identity): Enrolled
     {
-        return $this->link($account, $identity->provider, $identity->subject);
+        return $this->link($account, $identity->provider, $identity->subject, $identity->email, $identity->emailVerified);
     }
 
-    private function link(object $account, string $provider, string $subject): Enrolled
+    private function link(object $account, string $provider, string $subject, ?string $email, bool $emailVerified): Enrolled
     {
         $owner = $this->identities->owner($provider, $subject);
         if (null !== $owner) {
@@ -147,7 +158,7 @@ final class OAuthMethod implements Challenging, Enrolling
         if (\in_array($provider, $this->identities->providers($account), true)) {
             return Enrolled::failed(Failure::BadCredentials, 'other-identity');
         }
-        $this->identities->link($account, $provider, $subject);
+        $this->identities->link($account, $provider, $subject, $email, $emailVerified);
 
         return Enrolled::done();
     }

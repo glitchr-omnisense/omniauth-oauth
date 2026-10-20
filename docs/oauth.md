@@ -86,5 +86,8 @@ the visitor is signed in: signed in, `enrol()->confirm()`; not, `verify()`.
 nothing. The provider's own message is for the server's log (`ProviderError::getMessage()`), not
 the page.
 
-Not here: turning a link off. `Contract\Identities` has no `unlink()` yet; it comes with omnibase's
-store (AU4) and the `userIdentity` table.
+A link keeps what the provider said of the address at that moment (`Identities::link()`'s `$email`
+and `$emailVerified`), and every sign-in by an identity marks it used (`Identities::used()`, the
+method's clock). Turning a link off is the store's `Identities::unlink($account, $provider)`, which
+the host's settings page calls; omnibase's store is `Base\Auth\UserIdentities` on its
+`userIdentity` table.

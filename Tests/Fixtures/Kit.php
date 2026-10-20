@@ -66,7 +66,7 @@ final class Kit
             new PasswordMethod($this->store, $this->store, $hasher),
             new EmailCodeMethod($this->store, $this->store->emailCodes(), $this->sender, self::SECRET, clock: $this->clock),
         ]);
-        $this->oauth = new OAuthMethod($this->store, $this->store, new Providers($google ?? $this->google, ...$more), $byEmail instanceof \Closure ? $byEmail($this->methods) : $byEmail);
+        $this->oauth = new OAuthMethod($this->store, $this->store, new Providers($google ?? $this->google, ...$more), $byEmail instanceof \Closure ? $byEmail($this->methods) : $byEmail, $this->clock);
         $this->methods->add($this->oauth);
         $this->omniauth = new Omniauth(
             $this->store,

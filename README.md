@@ -115,8 +115,7 @@ only). No bundle, no kernel, no container.
   (the method does not check it: a token from the token endpoint over TLS, OpenID Connect Core
   §3.1.3.7 (6)); Google honouring PKCE and the nonce for this client (the fake server does, Google
   documents it); a host's store (`Base\Auth\UserIdentities` on the `userIdentity` table, steps AU4
-  and AU5's core part) and the bridges' routes around the trip (AU6, AU8); turning a link off
-  (`Identities` has no `unlink()` yet).
+  and AU5's core part) and the bridges' routes around the trip (AU6, AU8).
 
 ## Licence
 
