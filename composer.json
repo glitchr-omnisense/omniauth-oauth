@@ -1,8 +1,8 @@
 {
     "name": "omniauth/oauth",
     "type": "library",
-    "description": "Omniauth's identity providers over league/oauth2-client, under any PHP host, Google first: the sign-in (the authorization address, its state, PKCE and nonce kept in the attempt; then the code exchanged, the ID token's issuer, audience, lifetime and nonce checked, or the userinfo read; the state compared in constant time), the identity linked by the provider's own identifier (\"sub\"), by the address only when the provider says it is verified, never an account created behind the visitor's back (an unknown identity is a result the host turns into its sign-up), and the second factor after it when the account has one. Linking a provider from an account's settings; a fake authorization server for tests.",
-    "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "google", "pkce", "framework-agnostic", "omniauth"],
+    "description": "Omniauth's sign-in through identity providers (OAuth 2, OpenID Connect), under any PHP host, with no OAuth library: the mechanics every provider shares - the trip out (the authorization address, its state, PKCE verifier and nonce kept in the attempt, the return address on the host the trip began at), the trip back (the state compared in constant time, the code exchanged with the verifier) - and who it is: the identity linked by the provider's own identifier (\"sub\"), by the address only when the provider says it is verified, never an account created behind the visitor's back (an unknown identity is a result the host turns into its sign-up), the second factor after it when the account has one. Linking a provider from an account's settings; the providers by configuration through each provider package's factory (omniauth/google first); a fake authorization server for tests.",
+    "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "pkce", "framework-agnostic", "omniauth"],
     "homepage": "https://github.com/glitchr-studio/omniauth-oauth",
     "license": "MIT",
     "authors": [
@@ -13,8 +13,6 @@
     ],
     "require": {
         "php": ">=8.2",
-        "league/oauth2-client": "^2.7",
-        "league/oauth2-google": "^4.0",
         "omniscient/omniauth": "^1.0@dev",
         "psr/clock": "^1.0"
     },
@@ -22,7 +20,7 @@
         "phpunit/phpunit": "^11.0"
     },
     "suggest": {
-        "league/oauth2-facebook": "Another provider, added by configuration (Providers::fromConfig(), a league provider's class): any league/oauth2-client provider serves"
+        "omniauth/google": "Google, the first provider (over league/oauth2-google): its GoogleProvider and the GoogleFactory of Providers::configured()"
     },
     "autoload": {
         "psr-4": {

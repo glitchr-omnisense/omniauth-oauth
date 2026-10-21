@@ -28,7 +28,8 @@ final class OAuthMethodTest extends TestCase
         $kept = $kit->session[Omniauth::ATTEMPT]['kept']['oauth'];
 
         self::assertStringStartsWith(FakeProvider::AUTHORIZE.'?', $url);
-        self::assertSame(['provider', 'state', 'verifier', 'nonce'], array_keys($kept));
+        self::assertSame(['provider', 'state', 'verifier', 'nonce', 'origin'], array_keys($kept));
+        self::assertSame('https://example.org', \is_array($kept) ? $kept['origin'] : null, 'the origin of the request that began the trip');
         self::assertSame('google', $kept['provider']);
         self::assertSame($kept['state'], $query['state']);
         self::assertSame($kept['nonce'], $query['nonce']);
@@ -42,6 +43,27 @@ final class OAuthMethodTest extends TestCase
         $again = $kit->depart();
         self::assertNotSame($kept['state'], $kit->session[Omniauth::ATTEMPT]['kept']['oauth']['state'], 'a new trip, new values');
         self::assertNotSame($url, $again);
+    }
+
+    /**
+     * A provider configured with a return path: each trip returns to the
+     * host the request that began it was on (a long-running worker serves
+     * several hosts; the address is never frozen on the first one), and the
+     * exchange repeats that trip's address.
+     */
+    public function testAReturnPathFollowsTheHostOfEachTrip(): void
+    {
+        $google = new FakeProvider('google', '/login/google/callback');
+        $kit = new Kit(google: $google);
+        foreach (['https://lesringostars.localhost:8443' => 'lesringostars.localhost', 'http://localhost:8132' => 'localhost'] as $origin => $host) {
+            $context = new \Omniauth\Context($origin, $host, '203.0.113.7');
+            $url = (string) $kit->omniauth->begin('oauth', $context, ['provider' => 'google'])->payload;
+            parse_str((string) parse_url($url, \PHP_URL_QUERY), $query);
+            self::assertSame($origin.'/login/google/callback', $query['redirect_uri']);
+
+            $result = $kit->omniauth->verify('oauth', $context, $google->consent($url, self::RINGO));
+            self::assertTrue($result->isAuthenticated(), $origin);
+        }
     }
 
     public function testTheAccountLinkedToTheSubjectSignsInWhateverItsAddressSays(): void

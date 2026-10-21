@@ -16,6 +16,12 @@ use Omniauth\OAuth\Provider\Provider;
  * authorization carried (RFC 7636 §4.6); the nonce is the one the address
  * carried. So a test signs in with no network, and a forged or injected
  * return fails here as it would at Google.
+ *
+ * Its return address may be a path ("/login/google/callback"): each trip's
+ * address is then that path on the origin the trip began at
+ * (Authorization::returnAddress()), and a code is exchanged only for the
+ * address it was given to - as Google compares the token request's
+ * redirect_uri with the authorization's.
  */
 final class FakeProvider implements Provider
 {
@@ -44,7 +50,7 @@ final class FakeProvider implements Provider
     {
         return self::AUTHORIZE.'?'.http_build_query([
             'client_id' => $this->clientId,
-            'redirect_uri' => $this->redirectUri,
+            'redirect_uri' => $authorization->returnAddress($this->redirectUri),
             'response_type' => 'code',
             'scope' => implode(' ', $this->scopes),
             'state' => $authorization->state,
@@ -65,7 +71,7 @@ final class FakeProvider implements Provider
     public function consent(string $authorizationUrl, Identity|array $person): array
     {
         $query = self::query($authorizationUrl);
-        if (($query['client_id'] ?? null) !== $this->clientId || ($query['redirect_uri'] ?? null) !== $this->redirectUri) {
+        if (($query['client_id'] ?? null) !== $this->clientId || !$this->returnsHere($query['redirect_uri'] ?? '')) {
             throw new \InvalidArgumentException('Not an authorization address of this client and return address.');
         }
         if ('S256' !== ($query['code_challenge_method'] ?? null) || '' === (string) ($query['code_challenge'] ?? '')) {
@@ -76,7 +82,7 @@ final class FakeProvider implements Provider
             $person = new Identity($this->name, (string) $person['sub'], $email, null !== $email && Identity::verified($person['email_verified'] ?? false), isset($person['name']) ? (string) $person['name'] : null, $person);
         }
         $code = bin2hex(random_bytes(16));
-        $this->codes[$code] = ['challenge' => (string) $query['code_challenge'], 'nonce' => (string) ($query['nonce'] ?? ''), 'client' => $this->clientId, 'redirect' => $this->redirectUri, 'person' => $person];
+        $this->codes[$code] = ['challenge' => (string) $query['code_challenge'], 'nonce' => (string) ($query['nonce'] ?? ''), 'client' => $this->clientId, 'redirect' => (string) $query['redirect_uri'], 'person' => $person];
 
         return ['code' => $code, 'state' => (string) ($query['state'] ?? '')];
     }
@@ -101,11 +107,25 @@ final class FakeProvider implements Provider
         if (!hash_equals($grant['challenge'], $authorization->challenge())) {
             throw new ProviderError(ProviderError::EXCHANGE, 'invalid_grant: the code verifier does not match the challenge');
         }
+        if ($grant['redirect'] !== $authorization->returnAddress($this->redirectUri)) {
+            throw new ProviderError(ProviderError::EXCHANGE, 'invalid_grant: the redirect_uri is not the authorization\'s');
+        }
         if ('' !== $grant['nonce'] && !hash_equals($grant['nonce'], $authorization->nonce)) {
             throw new ProviderError(ProviderError::ID_TOKEN, 'The ID token\'s nonce is not right.');
         }
 
         return $grant['person'];
+    }
+
+    /** An authorization's return address is this provider's: the address configured, or its path on any origin. */
+    private function returnsHere(string $address): bool
+    {
+        if (!str_starts_with($this->redirectUri, '/') || str_starts_with($this->redirectUri, '//')) {
+            return $address === $this->redirectUri;
+        }
+        $parts = parse_url($address);
+
+        return \is_array($parts) && isset($parts['scheme'], $parts['host']) && ($parts['path'] ?? '') === $this->redirectUri && !isset($parts['query']);
     }
 
     /** @return array<string, string> */

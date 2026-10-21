@@ -91,7 +91,7 @@ final class OAuthMethod implements Challenging, Enrolling
 
     public function begin(Attempt $attempt, Proof $proof, Context $context): Challenge
     {
-        return $this->depart($attempt, $proof);
+        return $this->depart($attempt, $proof, $context);
     }
 
     public function verify(Attempt $attempt, Proof $proof, Context $context): Verdict
@@ -125,7 +125,7 @@ final class OAuthMethod implements Challenging, Enrolling
 
     public function enrolBegin(Attempt $enrolment, Proof $proof, Context $context): Challenge
     {
-        return $this->depart($enrolment, $proof);
+        return $this->depart($enrolment, $proof, $context);
     }
 
     public function enrolConfirm(Attempt $enrolment, Proof $proof, Context $context): Enrolled
@@ -163,14 +163,14 @@ final class OAuthMethod implements Challenging, Enrolling
         return Enrolled::done();
     }
 
-    /** The trip out: the provider named (or the only one), three values kept, its address given. */
-    private function depart(Attempt $attempt, Proof $proof): Challenge
+    /** The trip out: the provider named (or the only one), three values and the request's origin kept, its address given. */
+    private function depart(Attempt $attempt, Proof $proof, Context $context): Challenge
     {
         $provider = $this->provider($proof->string('provider'));
         if (null === $provider) {
             return Challenge::failed(Failure::BadCredentials, 'unknown-provider');
         }
-        $authorization = Authorization::fresh();
+        $authorization = Authorization::fresh($context->origin);
         $attempt->keep(Factor::OAuth, ['provider' => $provider->name()] + $authorization->toArray());
 
         return Challenge::redirect($provider->authorizationUrl($authorization));

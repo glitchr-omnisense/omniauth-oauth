@@ -15,7 +15,8 @@ $iterator = new RecursiveIteratorIterator(new RecursiveCallbackFilterIterator(
     static fn (SplFileInfo $file) => !in_array($file->getFilename(), ['Tests', 'docker', 'vendor', 'docs', '.git'], true),
 ));
 foreach ($iterator as $file) {
-    if ('php' !== $file->getExtension()) {
+    // Not the former names of another package's classes (class_alias() stubs): they load that package.
+    if (!$file instanceof SplFileInfo || 'php' !== $file->getExtension() || str_contains((string) file_get_contents($file->getPathname()), 'class_alias(')) {
         continue;
     }
     $class = $namespace.'\\'.str_replace('/', '\\', substr($file->getPathname(), strlen($root) + 1, -4));

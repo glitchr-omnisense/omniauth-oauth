@@ -10,4 +10,7 @@ parameters:
         - .
     excludePaths:
         - vendor
+        # The former names of omniauth/google's classes, aliases for one release.
+        - Provider/GoogleProvider.php
+        - Provider/LeagueProvider.php
     reportUnmatchedIgnoredErrors: false

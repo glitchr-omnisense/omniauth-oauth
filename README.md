@@ -1,23 +1,27 @@
 # omniauth/oauth
 
-Identity providers for [omniscient/omniauth](https://github.com/glitchr-studio/omniauth), **under
-any PHP host**, over league/oauth2-client - Google first: the trip out (the authorization address,
-its state, PKCE verifier and nonce kept in the attempt), the trip back (the state compared, the
-code exchanged with the verifier, the ID token checked), and **who it is**: the account linked to
+Sign-in through identity providers for [omniscient/omniauth](https://github.com/glitchr-studio/omniauth),
+**under any PHP host**, with no OAuth library - what every provider shares: the trip out (the
+authorization address, its state, PKCE verifier and nonce kept in the attempt, the return address
+on the host the trip began at), the trip back (the state compared, the code exchanged with the
+verifier), and **who it is**: the account linked to
 the provider's own identifier (`sub`), an account linked by its address only when the provider
-says the address is verified, and never an account created behind the visitor's back.
+says the address is verified, and never an account created behind the visitor's back. Each
+provider is a package of its own: [omniauth/google](https://github.com/glitchr-studio/omniauth-google)
+first (Marco's decision, 2026-10-21, the shape of omnishield's captchas).
 
 ```php
 use Omniauth\{ArrayState, Context, Omniauth, Status};
 use Omniauth\Method\Methods;
 use Omniauth\OAuth\{NoSecondFactorLinking, OAuthMethod};
-use Omniauth\OAuth\Provider\{GoogleProvider, Providers};
+use Omniauth\Google\GoogleProvider;                       // omniauth/google
+use Omniauth\OAuth\Provider\Providers;
 
 $methods = new Methods([/* the password, the code by e-mail, TOTP... */]);
 $methods->add(new OAuthMethod(
     $accounts,                                             // your accounts, behind Omniauth\Contract\Accounts
     $identities,                                           // provider + sub -> account, behind Omniauth\Contract\Identities
-    new Providers(new GoogleProvider($clientId, $clientSecret, 'https://example.org/login/google/callback')),
+    new Providers(new GoogleProvider($clientId, $clientSecret, '/login/google/callback')),
     new NoSecondFactorLinking($methods),                   // QA3: an account with a second factor is not linked by its address
 ));
 $omniauth = new Omniauth($accounts, $methods, new ArrayState($_SESSION));
@@ -36,21 +40,20 @@ match ($result->status) {
 };
 ```
 
-It requires omniscient/omniauth, league/oauth2-client ^2.7 and league/oauth2-google ^4.0 -
-framework-free; league speaks HTTP through Guzzle (Marco's decision QA6: league, in this package
-only). No bundle, no kernel, no container.
+It requires omniscient/omniauth alone: no OAuth library, no HTTP client (each provider package
+brings its own - omniauth/google, league/oauth2-google: Marco's decision QA6, league there only).
+No bundle, no kernel, no container.
 
 ## The shape
 
 | | |
 |---|---|
 | `OAuthMethod` | a first factor (`Challenging`, `Enrolling`): `begin()`/`verify()` sign in, `enrolBegin()`/`enrolConfirm()` link a provider from the settings, `adopt()` links the account a sign-up just made |
-| `Authorization` | the trip's three values - state, PKCE verifier (and its S256 challenge), nonce -, kept in the attempt, never in the answer |
+| `Authorization` | the trip's three values - state, PKCE verifier (and its S256 challenge), nonce - and the origin it began at, kept in the attempt, never in the answer; `returnAddress()` puts a provider's return path on that origin |
 | `Identity` | whom the provider vouched for: provider, subject, address, whether it is verified, name, the claims as they came |
-| `Provider\Provider` | where to send the visitor, then whom the code vouches for; the return address is its configuration's |
-| `Provider\GoogleProvider` | Google over league/oauth2-google, as an OpenID Connect provider: scopes `openid email profile`, the nonce, the ID token's issuer, audience, lifetime, nonce and hosted domain checked; the userinfo when there is no ID token |
-| `Provider\LeagueProvider` | any league/oauth2-client provider, its profile's fields named |
-| `Provider\Providers` | the providers served, by name; `fromConfig()` adds one by configuration (QA7) |
+| `Provider\Provider` | where to send the visitor, then whom the code vouches for; the return address (or path) is its configuration's |
+| `Provider\ProviderFactory` | makes one kind of provider from a host's configuration: each provider package has its own (`Omniauth\Google\GoogleFactory`) |
+| `Provider\Providers` | the providers served, by name; `configured()` makes them through the factories (`fromConfig()`, deprecated, through omniauth/google's) |
 | `Contract\EmailLinking`, `NoSecondFactorLinking` | may an account be linked by its address alone? (QA3) |
 | `Testing\FakeProvider` | an authorization server in memory that honours PKCE, codes once and the nonce: tests sign in with no network |
 
@@ -66,9 +69,10 @@ only). No bundle, no kernel, no container.
   `link-from-settings`); otherwise `Status::IdentityUnknown`, which the host turns into its sign-up
   (the 500 "User identifier is NULL" of lesringostars' transient account cannot happen: no account
   is made here).
-- **QA6, league/oauth2-client**: here only; neither the core nor the bridges require it.
-- **QA7, Google only**: `GoogleProvider`; any other provider is a configuration entry
-  (`Providers::fromConfig()`) the day it has credentials.
+- **QA6, league/oauth2-client**: in omniauth/google only; neither this package, the core nor the
+  bridges require it.
+- **QA7, Google only**, and **one package per provider** (2026-10-21): omniauth/google; another
+  provider is a package of its own the day a site asks for it.
 
 ## Documentation
 
@@ -97,19 +101,16 @@ only). No bundle, no kernel, no container.
     return replayed; a trip older than the attempt; `access_denied`; another provider's return;
   - from the settings: a provider linked whatever its address, a subject another account holds
     refused, one identity per provider and account, the state checked there too;
-  - **Google over league/oauth2-google and Guzzle, its answers recorded** (a Guzzle mock handler
-    with the shapes of Google's documentation: the token endpoint's JSON, the ID token, the
-    userinfo, an `invalid_grant`): the authorization address (Google's endpoint, every parameter);
-    the token request (POST to `oauth2.googleapis.com/token`, the code, **the verifier whose S256 is
-    the challenge that went out**, the client and the return address); the ID token's checks
-    (issuer, audience, authorized party, lifetime and leeway, issued in the future, nonce, subject,
-    hosted domain, not a JWT); `email_verified` as a boolean and as a string; the userinfo through
-    the bearer token when there is no ID token, and its subject compared with the token's; a code
-    Google refuses; a sign-in through the conductor end to end; another provider by configuration
-    (league's GenericProvider: its address, the verifier posted, its fields);
+  - **a return path on the host of each trip** (a long-running worker serving two hosts: each
+    visitor returns where they left from, the exchange is refused for another origin than the
+    trip's);
+  - the providers by configuration, through each kind's factory (an entry without credentials left
+    out, one without a return address or a factory refused);
   - `docs/installation.md` run as written; in plain PHP (`BareTest`), the sign-ins by hand load
-    nothing but omniauth, league, Guzzle, the PSR interfaces and the password hasher - no class of
-    a framework, of hwi/oauth-bundle, of the other omniauth packages or of an application.
+    nothing but omniauth, the PSR interfaces and the password hasher - no OAuth library, no class
+    of a framework, of hwi/oauth-bundle, of the other omniauth packages or of an application.
+  - Google itself: [omniauth/google](https://github.com/glitchr-studio/omniauth-google)'s own
+    tests (its answers recorded).
 - Not verified: **a real Google** - no client id and secret were at hand: the recorded answers are
   written from Google's documentation, not captured, and the ID token's signature is not Google's
   (the method does not check it: a token from the token endpoint over TLS, OpenID Connect Core

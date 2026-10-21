@@ -2,14 +2,12 @@
 
 namespace Omniauth\OAuth\Provider;
 
-use League\OAuth2\Client\Provider\AbstractProvider;
-use League\OAuth2\Client\Provider\GenericProvider;
 use Psr\Clock\ClockInterface;
 
 /**
- * The providers a host serves, by name. Marco's decision QA7: Google alone
- * today; another one is added by its configuration the day it has
- * credentials - no code (fromConfig()).
+ * The providers a host serves, by name. Marco's decisions: Google alone
+ * today (QA7), and one package per provider (2026-10-21) - omniauth/google
+ * first; configured() makes them through each package's factory.
  */
 final class Providers implements \IteratorAggregate, \Countable
 {
@@ -26,21 +24,18 @@ final class Providers implements \IteratorAggregate, \Countable
     /**
      * From a host's configuration (omniauth.yaml's "oauth" tree, config/omniauth.php's):
      *
-     *     google:   { client_id: …, client_secret: …, redirect_uri: …, scopes: [openid, email, profile], hosted_domain: ~ }
-     *     facebook: { class: League\OAuth2\Client\Provider\Facebook, client_id: …, client_secret: …, redirect_uri: …,
-     *                 options: { graphApiVersion: v19.0 }, scopes: [email, public_profile],
-     *                 fields: { subject: id, email: email, verified: ~, name: name } }
-     *     other:    { authorize_url: …, token_url: …, userinfo_url: …, client_id: …, … }   (league's GenericProvider)
+     *     google: { client_id: …, client_secret: …, redirect_uri: /login/google/callback, scopes: [openid, email, profile] }
      *
-     * "google" (or any entry of "type: google") is GoogleProvider; an entry
-     * with a "class" is that league provider; one with the three addresses is
-     * league's GenericProvider. An entry with no client_id is left out: a
-     * provider without credentials is not served.
+     * Each entry is made by the first factory that knows its kind (omniauth/google's
+     * GoogleFactory for "google": one package per provider). An entry with no
+     * client_id is left out: a provider without credentials is not served. Its
+     * redirect_uri is an absolute address, or a path the origin of each trip's
+     * request completes (Authorization::returnAddress()): under a long-running
+     * worker the visitor returns to the host they left from.
      *
      * @param array<string, array<string, mixed>> $config
-     * @param array<string, mixed>                $collaborators league's, for every provider (an "httpClient")
      */
-    public static function fromConfig(array $config, ?ClockInterface $clock = null, array $collaborators = []): self
+    public static function configured(array $config, ProviderFactory ...$factories): self
     {
         $providers = [];
         foreach ($config as $name => $entry) {
@@ -48,38 +43,43 @@ final class Providers implements \IteratorAggregate, \Countable
             if ('' === (string) ($entry['client_id'] ?? '')) {
                 continue;
             }
-            $credentials = ['clientId' => (string) $entry['client_id'], 'clientSecret' => (string) ($entry['client_secret'] ?? ''), 'redirectUri' => (string) ($entry['redirect_uri'] ?? '')];
-            if ('' === $credentials['redirectUri']) {
-                throw new \InvalidArgumentException(\sprintf('The "%s" provider has no redirect_uri: its return address is fixed by its configuration.', $name));
+            if ('' === (string) ($entry['redirect_uri'] ?? '')) {
+                throw new \InvalidArgumentException(\sprintf('The "%s" provider has no redirect_uri: its return address (or path) is its configuration\'s.', $name));
             }
-            $scopes = array_values(array_map('strval', (array) ($entry['scopes'] ?? [])));
-            $fields = \is_array($entry['fields'] ?? null) ? $entry['fields'] : [];
-            $type = $entry['type'] ?? ('google' === $name ? 'google' : null);
-            if ('google' === $type) {
-                $providers[] = new GoogleProvider($credentials['clientId'], $credentials['clientSecret'], $credentials['redirectUri'], $scopes ?: GoogleProvider::SCOPES, $entry['hosted_domain'] ?? null, $clock, $collaborators, $name);
-                continue;
-            }
-            $options = $credentials + (\is_array($entry['options'] ?? null) ? $entry['options'] : []);
-            if (isset($entry['class'])) {
-                $class = (string) $entry['class'];
-                if (!is_a($class, AbstractProvider::class, true)) {
-                    throw new \InvalidArgumentException(\sprintf('The "%s" provider\'s class "%s" is not a league/oauth2-client provider.', $name, $class));
+            foreach ($factories as $factory) {
+                $provider = $factory->create($name, $entry);
+                if (null !== $provider) {
+                    $providers[] = $provider;
+                    continue 2;
                 }
-                $league = new $class($options, $collaborators);
-            } elseif (isset($entry['authorize_url'], $entry['token_url'], $entry['userinfo_url'])) {
-                $league = new GenericProvider($options + [
-                    'urlAuthorize' => (string) $entry['authorize_url'],
-                    'urlAccessToken' => (string) $entry['token_url'],
-                    'urlResourceOwnerDetails' => (string) $entry['userinfo_url'],
-                    'scopeSeparator' => ' ',
-                ] + (isset($fields['subject']) ? ['responseResourceOwnerId' => (string) $fields['subject']] : []), $collaborators);
-            } else {
-                throw new \InvalidArgumentException(\sprintf('The "%s" provider names neither a league provider\'s class nor its three addresses (authorize_url, token_url, userinfo_url).', $name));
             }
-            $providers[] = new LeagueProvider($name, $league, $scopes, $fields);
+            throw new \InvalidArgumentException(\sprintf('No provider factory makes "%s" (type "%s"): install its package (omniauth/%s) and pass its factory.', $name, (string) ($entry['type'] ?? $name), (string) ($entry['type'] ?? $name)));
         }
 
         return new self(...$providers);
+    }
+
+    /**
+     * @deprecated use Providers::configured() with omniauth/google's
+     *             GoogleFactory: Google moved to its own package (this one requires no OAuth
+     *             library any more). Kept for one release; it serves Google entries alone.
+     *
+     * @param array<string, array<string, mixed>> $config
+     * @param array<string, mixed>                $collaborators league's, for every provider (an "httpClient")
+     */
+    public static function fromConfig(array $config, ?ClockInterface $clock = null, array $collaborators = []): self
+    {
+        @trigger_error('Providers::fromConfig() is deprecated: use Providers::configured() with omniauth/google\'s GoogleFactory.', \E_USER_DEPRECATED);
+        $factory = 'Omniauth\\Google\\GoogleFactory';
+        if (!class_exists($factory)) {
+            throw new \LogicException('Google moved to its own package: composer require omniauth/google, then Providers::configured($config, new GoogleFactory()).');
+        }
+        $made = new $factory($clock, $collaborators);
+        if (!$made instanceof ProviderFactory) {
+            throw new \LogicException(\sprintf('%s is no %s.', $factory, ProviderFactory::class));
+        }
+
+        return self::configured($config, $made);
     }
 
     public function has(string $name): bool

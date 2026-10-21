@@ -8,18 +8,16 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * omniauth/oauth with no framework: in PHP processes of their own (this one
- * has loaded PHPUnit), whole sign-ins by hand - a fake Google, then Google
- * over league/oauth2-google with recorded answers - and every class of the
- * package loaded. Nothing may come from outside but omniauth,
- * league/oauth2-client and league/oauth2-google, Guzzle (league's HTTP
- * client: guzzle, psr7, promises, getallheaders), the PSR interfaces and
- * symfony/password-hasher - no class of a framework, of hwi/oauth-bundle, of
- * the other omniauth packages or of an application.
+ * has loaded PHPUnit), whole sign-ins by hand on a fake Google, and every
+ * class of the package loaded. Nothing may come from outside but omniauth,
+ * the PSR interfaces and symfony/password-hasher - no OAuth library (league
+ * and Guzzle are omniauth/google's), no class of a framework, of
+ * hwi/oauth-bundle, of the other omniauth packages or of an application.
  */
 final class BareTest extends TestCase
 {
-    private const FOREIGN = '~^(?:Symfony\\\\(?!Component\\\\PasswordHasher\\\\|Polyfill\\\\)|Omniauth\\\\(?:Passkey|Totp)\\\\|(?:Illuminate|Laravel|Doctrine|Twig|Scheb|Lcobucci|Webauthn|OTPHP|HWI|Omnibridge|Base|App)\\\\)~';
-    private const ALLOWED_FILES = '~/vendor/(?:psr/[\w-]+|symfony/(?:password-hasher|polyfill-[\w-]+|deprecation-contracts)|league/(?:oauth2-client|oauth2-google)|guzzlehttp/(?:guzzle|psr7|promises)|ralouphie/getallheaders|composer)/|/vendor/autoload\.php$~';
+    private const FOREIGN = '~^(?:Symfony\\\\(?!Component\\\\PasswordHasher\\\\|Polyfill\\\\)|Omniauth\\\\(?:Passkey|Totp|Google)\\\\|League\\\\|GuzzleHttp\\\\|(?:Illuminate|Laravel|Doctrine|Twig|Scheb|Lcobucci|Webauthn|OTPHP|HWI|Omnibridge|Base|App)\\\\)~';
+    private const ALLOWED_FILES = '~/vendor/(?:psr/[\w-]+|symfony/(?:password-hasher|polyfill-[\w-]+|deprecation-contracts)|composer)/|/vendor/autoload\.php$~';
 
     public function testSignInsByHandLoadNothingElse(): void
     {
@@ -35,10 +33,9 @@ final class BareTest extends TestCase
         self::assertSame(['failed', 'not-enrolled', 'link-from-settings'], [$report['by-address-with-a-second-factor']['status'], $report['by-address-with-a-second-factor']['failure'], $report['by-address-with-a-second-factor']['reason']], 'QA3');
         self::assertSame(['second-factor-required', ['oauth'], ['email-code']], [$report['second-factor']['status'], $report['second-factor']['passed'], $report['second-factor']['offered']], 'QA2');
         self::assertSame(['authenticated', ['oauth', 'email-code']], [$report['then-the-code']['status'], $report['then-the-code']['passed']]);
-        self::assertSame(['authenticated', 'ringo', 'accounts.google.com'], [$report['google']['status'], $report['google']['account'], $report['google']['host']]);
 
         self::assertContains(OAuthMethod::class, $report['loaded']['symbols']);
-        self::assertContains('League\OAuth2\Client\Provider\Google', $report['loaded']['symbols']);
+        self::assertSame([], self::matching('~^(?:League|GuzzleHttp|Omniauth\\\\Google)\\\\~', $report['loaded']['symbols']), 'no OAuth library: league is omniauth/google\'s');
         self::assertSame([], self::foreign($report['loaded']['symbols']));
         self::assertSame([], self::outside($report['loaded']['files'], $report['loaded']['eager']));
     }
@@ -47,9 +44,10 @@ final class BareTest extends TestCase
     {
         $report = self::php([__DIR__.'/Fixtures/load-all.php', self::autoload(), \dirname(__DIR__), 'Omniauth\OAuth']);
 
-        foreach (['OAuthMethod', 'Provider\GoogleProvider', 'Provider\Providers', 'Testing\FakeProvider', 'NoSecondFactorLinking'] as $class) {
+        foreach (['OAuthMethod', 'Provider\Providers', 'Provider\ProviderFactory', 'Testing\FakeProvider', 'NoSecondFactorLinking'] as $class) {
             self::assertContains('Omniauth\OAuth\\'.$class, $report['loaded']);
         }
+        self::assertSame([], self::matching('~^(?:League|GuzzleHttp)\\\\~', $report['symbols']));
         self::assertSame([], self::foreign($report['symbols']));
         self::assertSame([], self::outside($report['files'], $report['eager']));
     }
@@ -64,6 +62,12 @@ final class BareTest extends TestCase
         $report = self::php([__DIR__.'/Fixtures/load-all.php', self::autoload(), \dirname(__DIR__), 'Omniauth\OAuth', $other]);
 
         self::assertContains($other, self::foreign($report['symbols']));
+    }
+
+    /** @return list<string> the symbols $pattern matches */
+    private static function matching(string $pattern, mixed $symbols): array
+    {
+        return \is_array($symbols) ? array_values(array_filter($symbols, static fn (mixed $symbol) => \is_string($symbol) && 1 === preg_match($pattern, $symbol))) : ['not a list'];
     }
 
     /** @return list<string> */

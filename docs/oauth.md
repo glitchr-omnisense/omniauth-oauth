@@ -11,7 +11,7 @@ order: 2
 new OAuthMethod(
     accounts: $accounts,          // Omniauth\Contract\Accounts
     identities: $identities,      // Omniauth\Contract\Identities: provider + sub -> account
-    providers: new Providers(new GoogleProvider($id, $secret, $redirectUri)),
+    providers: new Providers(new GoogleProvider($id, $secret, '/login/google/callback')),   // omniauth/google
     byEmail: new NoSecondFactorLinking($methods),   // true (any account), false (never), or a rule
 );
 ```
@@ -20,7 +20,7 @@ new OAuthMethod(
 
 | | |
 |---|---|
-| `begin()` (`['provider' => 'google']`, or nothing when one provider is served) | draws a state, a PKCE verifier and a nonce (32 random bytes each, base64url), keeps them in the attempt with the provider's name, answers `Challenge::redirect()` with the authorization address: the state, the S256 challenge, the nonce, the configured return address and scopes. The verifier never leaves the server. |
+| `begin()` (`['provider' => 'google']`, or nothing when one provider is served) | draws a state, a PKCE verifier and a nonce (32 random bytes each, base64url), keeps them in the attempt with the provider's name, answers `Challenge::redirect()` with the authorization address: the state, the S256 challenge, the nonce, the return address and scopes; it keeps the origin of the request too (`Context::$origin`), on which a return path (`/login/google/callback`) is completed - here and again at the exchange. The verifier never leaves the server. |
 | `verify()` (the return's query: `code`, `state`, or `error`) | takes what the attempt kept - **once**: a return replayed finds nothing, `expired` -, compares the state in constant time **before anything else** (a return this visitor did not begin is not read further: no exchange, no request), then has the provider exchange the code **with the verifier** and read the person. |
 
 The state stops a return the visitor did not begin (login CSRF: an attacker's own code landed in

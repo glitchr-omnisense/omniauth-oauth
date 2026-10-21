@@ -9,8 +9,9 @@ order: 1
 composer require omniscient/omniauth omniauth/oauth
 ```
 
-It requires omniscient/omniauth, league/oauth2-client and league/oauth2-google (framework-free;
-league talks HTTP through Guzzle). No bundle, no framework: the links between your accounts and
+It requires omniscient/omniauth alone: no OAuth library (Google is
+[omniauth/google](https://github.com/glitchr-studio/omniauth-google): `composer require
+omniauth/google`). No bundle, no framework: the links between your accounts and
 their providers stay in your table, behind omniauth's `Contract\Identities` (a provider, the
 person's identifier there - `sub` -, the account).
 
@@ -34,7 +35,7 @@ use Omniauth\Testing\InMemoryStore;
 use Omniauth\Testing\TestAccount;
 
 $store = new InMemoryStore($ringo = new TestAccount('42', 'ringo', 'ringo@example.org'));
-// Yours: new GoogleProvider($clientId, $clientSecret, 'https://example.org/login/google/callback')
+// Yours: omniauth/google's new GoogleProvider($clientId, $clientSecret, '/login/google/callback')
 $google = new FakeProvider('google', redirectUri: 'https://example.org/login/google/callback');
 
 $session = [];                                             // $_SESSION, in a real page
