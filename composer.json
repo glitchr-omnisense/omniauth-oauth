@@ -1,8 +1,8 @@
 {
     "name": "omniauth/oauth",
     "type": "library",
-    "description": "Omniauth's sign-in through identity providers (OAuth 2, OpenID Connect), under any PHP host, with no OAuth library: the mechanics every provider shares - the trip out (the authorization address, its state, PKCE verifier and nonce kept in the attempt, the return address on the host the trip began at), the trip back (the state compared in constant time, the code exchanged with the verifier) - and who it is: the identity linked by the provider's own identifier (\"sub\"), by the address only when the provider says it is verified, never an account created behind the visitor's back (an unknown identity is a result the host turns into its sign-up), the second factor after it when the account has one. Linking a provider from an account's settings; the providers by configuration through each provider package's factory (omniauth/google first); a fake authorization server for tests.",
-    "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "pkce", "framework-agnostic", "omniauth"],
+    "description": "Abandoned: omniauth's sign-in through identity providers is omniscient/omniauth's own since 2026-10-23 (Omniauth\\OAuth\\, the same namespace and class names; each provider a package of its own, omniauth/google first). This last release holds no code and requires omniscient/omniauth: require omniscient/omniauth instead.",
+    "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "omniauth", "abandoned"],
     "homepage": "https://github.com/glitchr-studio/omniauth-oauth",
     "license": "MIT",
     "authors": [
@@ -13,27 +13,7 @@
     ],
     "require": {
         "php": ">=8.2",
-        "omniscient/omniauth": "^1.0@dev",
-        "psr/clock": "^1.0"
-    },
-    "require-dev": {
-        "phpunit/phpunit": "^11.0"
-    },
-    "suggest": {
-        "omniauth/google": "Google, the first provider (over league/oauth2-google): its GoogleProvider and the GoogleFactory of Providers::configured()"
-    },
-    "autoload": {
-        "psr-4": {
-            "Omniauth\\OAuth\\": ""
-        },
-        "exclude-from-classmap": [
-            "/Tests/"
-        ]
-    },
-    "autoload-dev": {
-        "psr-4": {
-            "Omniauth\\OAuth\\Tests\\": "Tests/"
-        }
+        "omniscient/omniauth": "^1.0@dev"
     },
     "extra": {
         "branch-alias": {
