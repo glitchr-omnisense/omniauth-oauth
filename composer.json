@@ -1,9 +1,9 @@
 {
     "name": "omniauth/oauth",
     "type": "library",
-    "description": "Abandoned: omniauth's sign-in through identity providers is omniscient/omniauth's own since 2026-10-23 (Omniauth\\OAuth\\, the same namespace and class names; each provider a package of its own, omniauth/google first). This last release holds no code and requires omniscient/omniauth: require omniscient/omniauth instead.",
+    "description": "Abandoned: omniauth's sign-in through identity providers is omnisense/omniauth's own since 2026-10-23 (Omniauth\\OAuth\\, the same namespace and class names; each provider a package of its own, omniauth/google first). This last release holds no code and requires omnisense/omniauth: require omnisense/omniauth instead.",
     "keywords": ["authentication", "sign-in", "oauth", "oauth2", "openid-connect", "omniauth", "abandoned"],
-    "homepage": "https://github.com/glitchr-studio/omniauth-oauth",
+    "homepage": "https://github.com/glitchr-omnisense/omniauth-oauth",
     "license": "MIT",
     "authors": [
         {
@@ -13,7 +13,7 @@
     ],
     "require": {
         "php": ">=8.2",
-        "omniscient/omniauth": "^1.0@dev"
+        "omnisense/omniauth": "^1.0@dev"
     },
     "extra": {
         "branch-alias": {
